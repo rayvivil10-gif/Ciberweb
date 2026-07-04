@@ -5,7 +5,7 @@
    2. Effet "machine à écrire" dans le terminal du hero
    3. Animations au scroll (reveal + compteurs de stats)
    4. Bouton retour en haut
-   5. Validation et simulation d'envoi du formulaire de contact
+   5. Validation et envoi du formulaire de contact (Formspree)
    6. Année automatique dans le footer
    ============================================================ */
 
@@ -147,11 +147,14 @@ function initScrollTopButton() {
   });
 }
 
-/* ---------- 5. Formulaire de contact ---------- */
+/* ---------- 5. Formulaire de contact (envoi réel via Formspree) ---------- */
 function initContactForm() {
   const form = document.getElementById('contactForm');
   const status = document.getElementById('formStatus');
   if (!form || !status) return;
+
+  // URL de ton formulaire Formspree (CiberNav)
+  const FORMSPREE_ENDPOINT = 'https://formspree.io/f/xlgyzrre';
 
   const rules = {
     name: value => value.trim().length >= 2 || 'Merci d\'indiquer votre nom complet.',
@@ -160,7 +163,7 @@ function initContactForm() {
     message: value => value.trim().length >= 10 || 'Votre message doit contenir au moins 10 caractères.'
   };
 
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
     let isValid = true;
 
@@ -185,20 +188,32 @@ function initContactForm() {
       return;
     }
 
-    // Aucune API backend n'est configurée : on simule l'envoi.
-    // Pour un envoi réel, connectez ce formulaire à un service gratuit
-    // compatible avec un hébergement statique (ex. Formspree, EmailJS).
     const submitBtn = form.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Envoi en cours…';
 
-    setTimeout(() => {
-      status.textContent = 'Message envoyé avec succès. Nous revenons vers vous sous 24h ouvrées.';
-      status.className = 'form__status is-success';
-      form.reset();
+    try {
+      const response = await fetch(FORMSPREE_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        body: new FormData(form)
+      });
+
+      if (response.ok) {
+        status.textContent = 'Message envoyé avec succès. Nous revenons vers vous sous 24h ouvrées.';
+        status.className = 'form__status is-success';
+        form.reset();
+      } else {
+        status.textContent = 'Une erreur est survenue. Merci de réessayer ou de nous écrire directement par e-mail.';
+        status.className = 'form__status is-error';
+      }
+    } catch (error) {
+      status.textContent = 'Connexion impossible. Vérifiez votre réseau puis réessayez.';
+      status.className = 'form__status is-error';
+    } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = 'Envoyer le message';
-    }, 900);
+    }
   });
 
   // Efface l'erreur dès que l'utilisateur corrige le champ
