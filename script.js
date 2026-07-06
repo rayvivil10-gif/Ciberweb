@@ -1,940 +1,389 @@
 /* ============================================================
-   SENTRA — Feuille de style
+   SENTRA — script.js
    Sommaire :
-   1. Design tokens (couleurs, typographie, espacements)
-   2. Reset & base
-   3. Utilitaires (container, boutons, eyebrow, grid)
-   4. Navigation
-   5. Hero + radar (élément signature) + terminal
-   6. Stats
-   7. Services (cards)
-   8. Menaces (threat cards)
-   9. Protection (checklist)
-   10. Contact (formulaire)
-   11. Footer
-   12. Animations au scroll (reveal)
-   13. Responsive
+   1. Menu de navigation responsive
+   2. Effet "machine à écrire" dans le terminal du hero
+   3. Animations au scroll (reveal + compteurs de stats)
+   4. Bouton retour en haut
+   5. Validation et simulation d'envoi du formulaire de contact
+   6. Année automatique dans le footer
    ============================================================ */
 
-/* ---------- 1. Design tokens ---------- */
-:root {
-  /* Couleurs de base */
-  --bg: #0a0e14;
-  --bg-alt: #0d1420;
-  --surface: #111a27;
-  --surface-2: #16202f;
-  --border: #22303f;
+document.addEventListener('DOMContentLoaded', () => {
+  initNavToggle();
+  initTerminalTypewriter();
+  initScrollReveal();
+  initScrollTopButton();
+  initContactForm();
+  initFooterYear();
+  initChatbot();
+});
 
-  /* Accents */
-  --accent: #17e6c8;        /* cyan signal — détection / sécurité */
-  --accent-dim: #0e9c88;
-  --accent-soft: rgba(23, 230, 200, 0.12);
-  --alert: #ff5b54;         /* alerte / menace */
-  --alert-soft: rgba(255, 91, 84, 0.12);
-  --warn: #f5b642;
+/* ---------- 1. Menu de navigation responsive ---------- */
+function initNavToggle() {
+  const toggle = document.getElementById('navToggle');
+  const nav = document.getElementById('primaryNav');
+  if (!toggle || !nav) return;
 
-  /* Texte */
-  --text: #e8eef4;
-  --text-muted: #8a97a8;
-  --text-faint: #5a6b7d;
+  toggle.addEventListener('click', () => {
+    const isOpen = nav.classList.toggle('is-open');
+    toggle.setAttribute('aria-expanded', String(isOpen));
+    toggle.setAttribute('aria-label', isOpen ? 'Fermer le menu' : 'Ouvrir le menu');
+  });
 
-  /* Typographie */
-  --font-display: 'Space Grotesk', 'Segoe UI', sans-serif;
-  --font-body: 'Inter', 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
-
-  /* Échelle & rythme */
-  --radius: 12px;
-  --radius-sm: 8px;
-  --container: 1180px;
-  --nav-height: 76px;
-
-  /* Ombres */
-  --shadow-glow: 0 0 40px rgba(23, 230, 200, 0.15);
+  // Ferme le menu automatiquement après un clic sur un lien (mobile)
+  nav.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', () => {
+      nav.classList.remove('is-open');
+      toggle.setAttribute('aria-expanded', 'false');
+    });
+  });
 }
 
-/* ---------- 2. Reset & base ---------- */
-* , *::before, *::after { box-sizing: border-box; }
+/* ---------- 2. Effet machine à écrire dans le terminal ---------- */
+function initTerminalTypewriter() {
+  const el = document.getElementById('terminalLine');
+  if (!el) return;
 
-html {
-  scroll-behavior: smooth;
-  scroll-padding-top: var(--nav-height);
+  const lines = [
+    'Scan du réseau en cours…',
+    '0 vulnérabilité critique détectée.',
+    'Analyse des accès : 128 sessions actives.',
+    'Surveillance des points de terminaison : OK.',
+    'Aucune activité suspecte pour le moment.'
+  ];
+
+  let lineIndex = 0;
+  let charIndex = 0;
+  let deleting = false;
+
+  function tick() {
+    const current = lines[lineIndex];
+
+    if (!deleting) {
+      charIndex++;
+      el.textContent = current.slice(0, charIndex);
+      if (charIndex === current.length) {
+        deleting = true;
+        setTimeout(tick, 1600); // pause avant d'effacer
+        return;
+      }
+    } else {
+      charIndex--;
+      el.textContent = current.slice(0, charIndex);
+      if (charIndex === 0) {
+        deleting = false;
+        lineIndex = (lineIndex + 1) % lines.length;
+      }
+    }
+
+    setTimeout(tick, deleting ? 22 : 38);
+  }
+
+  tick();
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  * , *::before, *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
+/* ---------- 3. Animations au scroll ---------- */
+function initScrollReveal() {
+  const revealEls = document.querySelectorAll('.reveal');
+  const statNumbers = document.querySelectorAll('.stats__number');
+
+  if (!('IntersectionObserver' in window)) {
+    // Repli simple si IntersectionObserver n'est pas supporté
+    revealEls.forEach(el => el.classList.add('is-visible'));
+    statNumbers.forEach(animateCounter);
+    return;
+  }
+
+  const revealObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+
+  revealEls.forEach(el => revealObserver.observe(el));
+
+  const statsObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        animateCounter(entry.target);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.5 });
+
+  statNumbers.forEach(el => statsObserver.observe(el));
+}
+
+// Anime un compteur numérique de 0 jusqu'à la valeur data-count
+function animateCounter(el) {
+  const target = parseInt(el.getAttribute('data-count'), 10) || 0;
+  const duration = 1400;
+  const startTime = performance.now();
+
+  function step(now) {
+    const progress = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+    el.textContent = Math.round(eased * target);
+    if (progress < 1) requestAnimationFrame(step);
+  }
+
+  requestAnimationFrame(step);
+}
+
+/* ---------- 4. Bouton retour en haut ---------- */
+function initScrollTopButton() {
+  const btn = document.getElementById('scrollTop');
+  if (!btn) return;
+
+  window.addEventListener('scroll', () => {
+    btn.classList.toggle('is-visible', window.scrollY > 500);
+  }, { passive: true });
+
+  btn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+
+/* ---------- 5. Formulaire de contact ---------- */
+function initContactForm() {
+  const form = document.getElementById('contactForm');
+  const status = document.getElementById('formStatus');
+  if (!form || !status) return;
+
+  // URL de ton formulaire Formspree (CiberNav)
+  const FORMSPREE_ENDPOINT = 'https://formspree.io/f/xlgyzrre';
+
+  const rules = {
+    name: value => value.trim().length >= 2 || 'Merci d\'indiquer votre nom complet.',
+    email: value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()) || 'Adresse e-mail invalide.',
+    subject: value => value !== '' || 'Merci de choisir un sujet.',
+    message: value => value.trim().length >= 10 || 'Votre message doit contenir au moins 10 caractères.'
+  };
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    let isValid = true;
+
+    Object.keys(rules).forEach(fieldName => {
+      const field = form.elements[fieldName];
+      const errorEl = form.querySelector(`[data-error-for="${fieldName}"]`);
+      const result = rules[fieldName](field.value);
+
+      if (result !== true) {
+        field.classList.add('is-invalid');
+        if (errorEl) errorEl.textContent = result;
+        isValid = false;
+      } else {
+        field.classList.remove('is-invalid');
+        if (errorEl) errorEl.textContent = '';
+      }
+    });
+
+    if (!isValid) {
+      status.textContent = 'Merci de corriger les champs indiqués ci-dessus.';
+      status.className = 'form__status is-error';
+      return;
+    }
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Envoi en cours…';
+
+    try {
+      const response = await fetch(FORMSPREE_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        body: new FormData(form)
+      });
+
+      if (response.ok) {
+        status.textContent = 'Message envoyé avec succès. Nous revenons vers vous sous 24h ouvrées.';
+        status.className = 'form__status is-success';
+        form.reset();
+      } else {
+        status.textContent = 'Une erreur est survenue. Merci de réessayer ou de nous écrire directement par e-mail.';
+        status.className = 'form__status is-error';
+      }
+    } catch (error) {
+      status.textContent = 'Connexion impossible. Vérifiez votre réseau puis réessayez.';
+      status.className = 'form__status is-error';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Envoyer le message';
+    }
+  });
+
+  // Efface l'erreur dès que l'utilisateur corrige le champ
+  Object.keys(rules).forEach(fieldName => {
+    const field = form.elements[fieldName];
+    field.addEventListener('input', () => {
+      field.classList.remove('is-invalid');
+      const errorEl = form.querySelector(`[data-error-for="${fieldName}"]`);
+      if (errorEl) errorEl.textContent = '';
+    });
+  });
+}
+
+/* ---------- 7. Assistant CiberNav (chatbot basé sur des règles) ---------- */
+function initChatbot() {
+  const toggle = document.getElementById('chatbotToggle');
+  const win = document.getElementById('chatbotWindow');
+  const closeBtn = document.getElementById('chatbotClose');
+  const messagesEl = document.getElementById('chatbotMessages');
+  const form = document.getElementById('chatbotForm');
+  const input = document.getElementById('chatbotInput');
+  if (!toggle || !win || !form || !input || !messagesEl) return;
+
+  // Base de connaissances : mots-clés -> réponse.
+  // Aucune donnée n'est envoyée à un serveur externe ; tout tourne dans le navigateur.
+  const knowledge = [
+    { keys: ['phishing', 'hameçonnage'], answer: 'Le phishing est un message frauduleux qui imite une source fiable pour voler vos identifiants. Ne cliquez jamais sur un lien suspect et vérifiez toujours l\'expéditeur.' },
+    { keys: ['ransomware', 'rançongiciel', 'rançon'], answer: 'Un ransomware chiffre vos fichiers et exige une rançon. La meilleure protection : des sauvegardes régulières et hors ligne, et des systèmes à jour.' },
+    { keys: ['malware', 'virus', 'logiciel malveillant'], answer: 'Un malware est un logiciel conçu pour nuire à un appareil. Évitez les pièces jointes inconnues et gardez un antivirus à jour.' },
+    { keys: ['ddos', 'déni de service'], answer: 'Une attaque DDoS sature un service avec un trafic massif pour le rendre inaccessible. Un pare-feu applicatif et un service anti-DDoS limitent ce risque.' },
+    { keys: ['ingénierie sociale', 'social engineering', 'manipulation'], answer: 'L\'ingénierie sociale manipule une personne plutôt qu\'un système. Méfiez-vous des demandes urgentes ou inhabituelles, même venant d\'un contact connu.' },
+    { keys: ['force brute', 'mot de passe', 'password'], answer: 'Une attaque par force brute teste des milliers de mots de passe automatiquement. Utilisez un mot de passe long, unique, et activez la double authentification (MFA).' },
+    { keys: ['mfa', 'double authentification', '2fa'], answer: 'La double authentification (MFA) ajoute un second facteur de vérification : même si votre mot de passe est volé, votre compte reste protégé.' },
+    { keys: ['audit'], answer: 'Un audit de sécurité analyse votre infrastructure pour repérer les failles avant qu\'un attaquant ne les exploite. Voulez-vous qu\'on vous en propose un ? Contactez-nous via le formulaire ou WhatsApp.' },
+    { keys: ['pentest', 'test d\'intrusion', 'intrusion'], answer: 'Un test d\'intrusion (pentest) simule une vraie attaque pour révéler vos vulnérabilités réelles, en conditions contrôlées.' },
+    { keys: ['prix', 'tarif', 'coût', 'combien'], answer: 'Les tarifs dépendent de la taille de votre infrastructure et du service choisi. Le plus simple : décrivez votre besoin via le formulaire de contact ou sur WhatsApp, et vous recevrez un devis personnalisé.' },
+    { keys: ['contact', 'joindre', 'appeler', 'whatsapp', 'téléphone'], answer: 'Vous pouvez nous écrire directement sur WhatsApp au +509 43 41 54 19, par e-mail à woodrayvivil@gmail.com, ou via le formulaire de la section Contact.' },
+    { keys: ['bonjour', 'salut', 'bonsoir', 'hello'], answer: 'Bonjour ! Je suis l\'assistant CiberNav. Posez-moi une question sur le phishing, les ransomwares, la protection de vos comptes, ou nos services.' },
+    { keys: ['merci'], answer: 'Avec plaisir ! N\'hésitez pas si vous avez d\'autres questions.' }
+  ];
+
+  const fallback = 'Je n\'ai pas de réponse précise pour ça. Pour une aide personnalisée, contactez l\'équipe CiberNav sur WhatsApp (+509 43 41 54 19) ou par e-mail (woodrayvivil@gmail.com).';
+  const welcome = 'Bonjour 👋 Je suis l\'assistant CiberNav. Demandez-moi ce qu\'est un phishing, un ransomware, ou comment protéger vos comptes.';
+
+  function addMessage(text, sender) {
+    const bubble = document.createElement('div');
+    bubble.className = `chatbot__msg chatbot__msg--${sender}`;
+    bubble.textContent = text;
+    messagesEl.appendChild(bubble);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function findAnswer(userText) {
+    const normalized = userText.toLowerCase();
+    const match = knowledge.find(entry => entry.keys.some(key => normalized.includes(key)));
+    return match ? match.answer : fallback;
+  }
+
+  function openChat() {
+    win.classList.add('is-open');
+    win.setAttribute('aria-hidden', 'false');
+    if (!messagesEl.children.length) addMessage(welcome, 'bot');
+    input.focus();
+  }
+
+  function closeChat() {
+    win.classList.remove('is-open');
+    win.setAttribute('aria-hidden', 'true');
+  }
+
+  toggle.addEventListener('click', () => {
+    win.classList.contains('is-open') ? closeChat() : openChat();
+  });
+
+  closeBtn.addEventListener('click', closeChat);
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+
+    addMessage(text, 'user');
+    input.value = '';
+
+    // Petit délai pour un effet plus naturel de "réflexion"
+    setTimeout(() => addMessage(findAnswer(text), 'bot'), 400);
+  });
+}
+
+/* ---------- 8. Connexion Google (Google Identity Services) ---------- */
+// Cette fonction est appelée automatiquement une fois le script Google chargé
+// (voir l'attribut onload="initGoogleSignIn()" dans index.html).
+function initGoogleSignIn() {
+  if (!window.google || !google.accounts || !google.accounts.id) return;
+
+  google.accounts.id.initialize({
+    client_id: '265182935103-8k99458dhdlil5ot39rrlgev7j6mv9ag.apps.googleusercontent.com',
+    callback: handleGoogleCredential,
+    auto_select: false
+  });
+
+  const btnContainer = document.getElementById('googleSignInContainer');
+  if (btnContainer) {
+    google.accounts.id.renderButton(btnContainer, {
+      type: 'standard',
+      theme: 'filled_black',
+      size: 'medium',
+      shape: 'pill',
+      text: 'signin_with'
+    });
+  }
+
+  // Restaure une session déjà ouverte dans ce navigateur (stockage local uniquement)
+  const saved = localStorage.getItem('cibernav_user');
+  if (saved) {
+    try { showUserProfile(JSON.parse(saved)); } catch (e) { /* donnée corrompue, ignorée */ }
   }
 }
 
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body);
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-}
-
-h1, h2, h3, h4 {
-  font-family: var(--font-display);
-  color: var(--text);
-  line-height: 1.15;
-  margin: 0;
-}
-
-p { margin: 0; }
-a { color: inherit; text-decoration: none; }
-ul { list-style: none; margin: 0; padding: 0; }
-img, svg { display: block; max-width: 100%; }
-button { font-family: inherit; cursor: pointer; }
-
-/* Focus visible clavier — accessibilité */
-a:focus-visible,
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-  border-radius: 4px;
-}
-
-/* ---------- 3. Utilitaires ---------- */
-.container {
-  max-width: var(--container);
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-.section {
-  padding: 110px 0;
-}
-
-.section--alt { background: var(--bg-alt); }
-
-.section__title {
-  font-size: clamp(1.9rem, 3.4vw, 2.7rem);
-  max-width: 640px;
-  margin-top: 14px;
-  letter-spacing: -0.01em;
-}
-
-.section__intro {
-  color: var(--text-muted);
-  max-width: 560px;
-  margin-top: 18px;
-  font-size: 1.05rem;
-}
-
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-.eyebrow__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-soft);
-  animation: pulse-dot 2.2s ease-in-out infinite;
-}
-
-.eyebrow__dot--alert {
-  background: var(--alert);
-  box-shadow: 0 0 0 4px var(--alert-soft);
-}
-
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-.grid { display: grid; gap: 26px; }
-
-.grid--services { grid-template-columns: repeat(3, 1fr); margin-top: 56px; }
-.grid--threats { grid-template-columns: repeat(3, 1fr); margin-top: 56px; }
-
-/* Boutons */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 14px 26px;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  font-size: 0.95rem;
-  border: 1px solid transparent;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
-}
-
-.btn--primary {
-  background: var(--accent);
-  color: #06231f;
-}
-
-.btn--primary:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-glow);
-}
-
-.btn--ghost {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text);
-}
-
-.btn--ghost:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.btn--full { width: 100%; margin-top: 6px; }
-
-/* ---------- 4. Navigation ---------- */
-.navbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--nav-height);
-  z-index: 1000;
-  background: rgba(10, 14, 20, 0.72);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--border);
-}
-
-.navbar__inner {
-  max-width: var(--container);
-  margin: 0 auto;
-  padding: 0 24px;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.navbar__brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.2rem;
-  letter-spacing: 0.02em;
-}
-
-.navbar__brand-icon { color: var(--accent); display: flex; }
-
-.navbar__nav {
-  display: flex;
-  align-items: center;
-  gap: 34px;
-}
-
-.nav-link {
-  font-size: 0.94rem;
-  color: var(--text-muted);
-  position: relative;
-  transition: color 0.2s ease;
-}
-
-.nav-link::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: -6px;
-  width: 0;
-  height: 1.5px;
-  background: var(--accent);
-  transition: width 0.25s ease;
-}
-
-.nav-link:hover { color: var(--text); }
-.nav-link:hover::after { width: 100%; }
-
-.nav-link--cta {
-  color: var(--bg);
-  background: var(--accent);
-  padding: 9px 18px;
-  border-radius: 8px;
-  font-weight: 600;
-}
-.nav-link--cta::after { display: none; }
-.nav-link--cta:hover { color: var(--bg); filter: brightness(1.1); }
-
-.navbar__toggle {
-  display: none;
-  flex-direction: column;
-  justify-content: center;
-  gap: 5px;
-  width: 34px;
-  height: 34px;
-  background: transparent;
-  border: none;
-  padding: 0;
-}
-
-.navbar__toggle span {
-  display: block;
-  height: 2px;
-  width: 100%;
-  background: var(--text);
-  border-radius: 2px;
-  transition: transform 0.25s ease, opacity 0.25s ease;
-}
-
-.navbar__toggle[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-.navbar__toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
-.navbar__toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
-
-/* ---------- 5. Hero ---------- */
-.hero {
-  position: relative;
-  padding: calc(var(--nav-height) + 80px) 0 60px;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 82% 18%, rgba(23, 230, 200, 0.14), transparent 42%),
-    radial-gradient(circle at 10% 90%, rgba(255, 91, 84, 0.08), transparent 40%),
-    var(--bg);
-}
-
-.hero__scanlines {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.025) 0px,
-    rgba(255, 255, 255, 0.025) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-  opacity: 0.5;
-}
-
-.hero__inner {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 50px;
-  align-items: center;
-  position: relative;
-}
-
-.hero__title {
-  font-size: clamp(2.3rem, 4.6vw, 3.6rem);
-  letter-spacing: -0.015em;
-  margin-top: 18px;
-}
-
-.hero__subtitle {
-  color: var(--text-muted);
-  font-size: 1.08rem;
-  max-width: 520px;
-  margin-top: 20px;
-}
-
-.hero__actions {
-  display: flex;
-  gap: 14px;
-  margin-top: 32px;
-  flex-wrap: wrap;
-}
-
-/* Terminal factice dans le hero */
-.hero__terminal {
-  margin-top: 46px;
-  max-width: 480px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.terminal__bar {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 10px 14px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
-}
-
-.terminal__dot { width: 9px; height: 9px; border-radius: 50%; }
-.terminal__dot--r { background: #ff5f56; }
-.terminal__dot--y { background: #ffbd2e; }
-.terminal__dot--g { background: #27c93f; }
-
-.terminal__label {
-  margin-left: 8px;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-faint);
-}
-
-.terminal__body {
-  padding: 18px 16px;
-  font-family: var(--font-mono);
-  font-size: 0.86rem;
-  min-height: 62px;
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  color: var(--accent);
-}
-
-.terminal__line { color: var(--accent); white-space: pre-wrap; }
-
-.terminal__cursor {
-  animation: blink 1s step-end infinite;
-  color: var(--accent);
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-/* Radar — élément signature */
-.hero__radar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
-}
-
-.radar {
-  position: relative;
-  width: min(360px, 80vw);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--surface) 0%, var(--bg-alt) 78%);
-  border: 1px solid var(--border);
-  box-shadow: inset 0 0 60px rgba(0,0,0,0.4);
-}
-
-.radar__grid {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background-image:
-    linear-gradient(rgba(23,230,200,0.12) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23,230,200,0.12) 1px, transparent 1px);
-  background-size: 12.5% 12.5%;
-  mask-image: radial-gradient(circle, black 70%, transparent 100%);
-}
-
-.radar__ring {
-  position: absolute;
-  border: 1px solid rgba(23, 230, 200, 0.28);
-  border-radius: 50%;
-}
-.radar__ring--1 { inset: 12%; }
-.radar__ring--2 { inset: 28%; }
-.radar__ring--3 { inset: 44%; }
-
-.radar__sweep {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, rgba(23,230,200,0.55), transparent 28%);
-  animation: sweep 4s linear infinite;
-  mix-blend-mode: screen;
-}
-
-@keyframes sweep {
-  to { transform: rotate(360deg); }
-}
-
-.radar__core {
-  position: absolute;
-  top: 50%; left: 50%;
-  width: 10px; height: 10px;
-  background: var(--accent);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 16px 4px var(--accent-soft);
-}
-
-.radar__blip {
-  position: absolute;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--alert);
-  box-shadow: 0 0 10px 2px var(--alert-soft);
-  animation: blip-fade 3s ease-in-out infinite;
-}
-
-.radar__blip--1 { top: 24%; left: 66%; animation-delay: 0s; }
-.radar__blip--2 { top: 62%; left: 30%; animation-delay: 0.9s; }
-.radar__blip--3 { top: 70%; left: 68%; animation-delay: 1.8s; }
-.radar__blip--4 { top: 30%; left: 24%; animation-delay: 2.6s; }
-
-@keyframes blip-fade {
-  0%, 100% { opacity: 0; transform: scale(0.6); }
-  15%, 55% { opacity: 1; transform: scale(1); }
-}
-
-.radar__caption {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--text-faint);
-}
-
-/* ---------- 6. Stats ---------- */
-.stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-  padding: 60px 24px;
-  border-bottom: 1px solid var(--border);
-}
-
-.stats__item {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.stats__number, .stats__suffix {
-  font-family: var(--font-display);
-  font-size: clamp(1.8rem, 3vw, 2.4rem);
-  font-weight: 700;
-  color: var(--accent);
-  display: inline;
-}
-
-.stats__label {
-  display: block;
-  margin-top: 8px;
-  color: var(--text-muted);
-  font-size: 0.88rem;
-}
-
-/* ---------- 7. Services ---------- */
-.card {
-  position: relative;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 30px 26px;
-  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
-}
-
-.card:hover {
-  transform: translateY(-4px);
-  border-color: var(--accent-dim);
-  box-shadow: var(--shadow-glow);
-}
-
-.card__code {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-faint);
-  letter-spacing: 0.05em;
-}
-
-.card__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  margin: 16px 0 18px;
-}
-
-.card__icon svg { width: 22px; height: 22px; }
-
-.card__title { font-size: 1.15rem; margin-bottom: 10px; }
-.card__text { color: var(--text-muted); font-size: 0.94rem; }
-
-/* ---------- 8. Menaces ---------- */
-.threat {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--alert);
-  border-radius: var(--radius);
-  padding: 26px 26px 28px;
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-
-.threat:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 0 34px rgba(255, 91, 84, 0.12);
-}
-
-.threat__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.threat__title { font-size: 1.1rem; }
-
-.threat__level {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  padding: 4px 10px;
-  border-radius: 20px;
-  white-space: nowrap;
-  letter-spacing: 0.02em;
-}
-
-.threat__level--critical { background: var(--alert-soft); color: var(--alert); }
-.threat__level--high { background: rgba(245, 182, 66, 0.14); color: var(--warn); }
-.threat__level--medium { background: var(--accent-soft); color: var(--accent); }
-
-.threat__text {
-  color: var(--text-muted);
-  font-size: 0.94rem;
-  margin-top: 14px;
-}
-
-.threat__signal {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--border);
-  font-size: 0.85rem;
-  color: var(--text-faint);
-}
-
-.threat__signal strong { color: var(--text-muted); }
-
-/* ---------- 9. Protection ---------- */
-.protection__layout {
-  display: grid;
-  grid-template-columns: 0.85fr 1.15fr;
-  gap: 60px;
-  align-items: start;
-}
-
-.protection__text .btn { margin-top: 30px; }
-
-.checklist {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-}
-
-.checklist__item {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
-.checklist__icon {
-  flex-shrink: 0;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-
-.checklist__title { font-size: 1rem; margin-bottom: 6px; }
-.checklist__text { color: var(--text-muted); font-size: 0.92rem; }
-
-/* ---------- 10. Contact ---------- */
-.contact__layout {
-  display: grid;
-  grid-template-columns: 1.4fr 0.9fr;
-  gap: 40px;
-  margin-top: 50px;
-}
-
-.contact__form {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 34px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.form__row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-.form__group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.form__group label {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.form__group input,
-.form__group select,
-.form__group textarea {
-  background: var(--bg-alt);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: 0.95rem;
-  transition: border-color 0.2s ease;
-  resize: vertical;
-}
-
-.form__group input:focus,
-.form__group select:focus,
-.form__group textarea:focus {
-  border-color: var(--accent);
-}
-
-.form__group input.is-invalid,
-.form__group select.is-invalid,
-.form__group textarea.is-invalid {
-  border-color: var(--alert);
-}
-
-.form__error {
-  min-height: 16px;
-  font-size: 0.78rem;
-  color: var(--alert);
-}
-
-.form__status {
-  font-size: 0.9rem;
-  min-height: 20px;
-}
-
-.form__status.is-success { color: var(--accent); }
-.form__status.is-error { color: var(--alert); }
-
-.contact__info {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.info__card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 22px;
-}
-
-.info__card h3 { font-size: 0.95rem; margin-bottom: 8px; }
-.info__card p { color: var(--text-muted); font-size: 0.9rem; }
-.info__value { color: var(--accent) !important; font-family: var(--font-mono); margin-top: 4px; font-size: 0.85rem !important; }
-
-.info__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  transition: opacity 0.2s ease;
-}
-
-.info__link:hover { opacity: 0.8; }
-
-.info__icon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  color: var(--accent);
-}
-
-/* ---------- 11. Footer ---------- */
-.footer {
-  background: var(--bg-alt);
-  border-top: 1px solid var(--border);
-  padding: 70px 0 0;
-}
-
-.footer__grid {
-  display: grid;
-  grid-template-columns: 1.6fr 1fr 1fr 1fr;
-  gap: 40px;
-  padding-bottom: 50px;
-}
-
-.footer__tagline {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  margin-top: 14px;
-  max-width: 280px;
-}
-
-.footer__col h4 {
-  font-size: 0.85rem;
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 16px;
-}
-
-.footer__col a {
-  display: block;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  padding: 5px 0;
-  transition: color 0.2s ease;
-}
-
-.footer__col a:hover { color: var(--accent); }
-
-.footer__socials { display: flex; gap: 12px; }
-
-.social-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  transition: color 0.2s ease, border-color 0.2s ease;
-}
-
-.social-icon svg { width: 16px; height: 16px; }
-.social-icon:hover { color: var(--accent); border-color: var(--accent); }
-
-.footer__bottom {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 22px 24px;
-  border-top: 1px solid var(--border);
-  font-size: 0.8rem;
-  color: var(--text-faint);
-}
-
-/* ---------- 12. Animations au scroll ---------- */
-.reveal {
-  opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.7s ease, transform 0.7s ease;
-}
-
-.reveal.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Bouton retour en haut */
-.scroll-top {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--accent);
-  font-size: 1.1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(10px);
-  transition: all 0.25s ease;
-  z-index: 900;
-}
-
-.scroll-top.is-visible {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-}
-
-.scroll-top:hover { border-color: var(--accent); box-shadow: var(--shadow-glow); }
-
-/* ---------- Google Sign-In ---------- */
-.google-signin {
-  display: flex;
-  align-items: center;
-}
-
-.user-profile {
-  display: none;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 14px 6px 6px;
-  border: 1px solid var(--border);
-  border-radius: 30px;
-  background: var(--surface);
-}
-
-.user-profile__avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.user-profile__name {
-  font-size: 0.85rem;
-  color: var(--text);
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-profile__logout {
-  background: transparent;
-  border: none;
-  color: var(--text-faint);
-  font-size: 0.75rem;
-  text-decoration: underline;
-  padding: 0;
-}
-
-.user-profile__logout:hover { color: var(--alert); }
-
-/* ---------- 13. Responsive ---------- */
-@media (max-width: 980px) {
-  .hero__inner { grid-template-columns: 1fr; }
-  .hero__radar { order: -1; }
-  .grid--services, .grid--threats { grid-template-columns: repeat(2, 1fr); }
-  .protection__layout { grid-template-columns: 1fr; }
-  .contact__layout { grid-template-columns: 1fr; }
-  .footer__grid { grid-template-columns: 1fr 1fr; }
-}
-
-@media (max-width: 720px) {
-  .navbar__nav {
-    position: fixed;
-    top: var(--nav-height);
-  
+// Appelée par Google après une connexion réussie, avec un jeton signé (JWT)
+function handleGoogleCredential(response) {
+  const payload = parseJwt(response.credential);
+  if (!payload) return;
+
+  const user = {
+    name: payload.name,
+    email: payload.email,
+    picture: payload.picture
+  };
+
+  localStorage.setItem('cibernav_user', JSON.stringify(user));
+  showUserProfile(user);
+}
+
+// Décode la partie "payload" d'un jeton JWT (aucune librairie externe nécessaire)
+function parseJwt(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+    );
+    return JSON.parse(json);
+  } catch (e) {
+    return null;
+  }
+}
+
+// Affiche la photo, le nom et un bouton de déconnexion à la place du bouton Google
+function showUserProfile(user) {
+  const container = document.getElementById('googleSignInContainer');
+  const profile = document.getElementById('userProfile');
+  if (!profile) return;
+
+  profile.innerHTML = `
+    <img src="${user.picture}" alt="${user.name}" class="user-profile__avatar">
+    <span class="user-profile__name">${user.name}</span>
+    <button type="button" class="user-profile__logout" id="googleLogoutBtn">Déconnexion</button>
+  `;
+  profile.style.display = 'flex';
+  if (container) container.style.display = 'none';
+
+  document.getElementById('googleLogoutBtn').addEventListener('click', () => {
+    localStorage.removeItem('cibernav_user');
+    profile.style.display = 'none';
+    profile.innerHTML = '';
+    if (container) container.style.display = 'flex';
+    if (window.google && google.accounts && google.accounts.id) {
+      google.accounts.id.disableAutoSelect();
+    }
+  });
+           }
+                                      
