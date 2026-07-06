@@ -10,13 +10,23 @@
    ============================================================ */
 
 document.addEventListener('DOMContentLoaded', () => {
-  initNavToggle();
-  initTerminalTypewriter();
-  initScrollReveal();
-  initScrollTopButton();
-  initContactForm();
-  initFooterYear();
-  initChatbot();
+  // Chaque fonctionnalité s'initialise indépendamment : si l'une d'elles
+  // rencontre un problème, les autres continuent de fonctionner normalement.
+  [
+    initNavToggle,
+    initTerminalTypewriter,
+    initScrollReveal,
+    initScrollTopButton,
+    initContactForm,
+    initFooterYear,
+    initChatbot
+  ].forEach(fn => {
+    try {
+      fn();
+    } catch (error) {
+      console.error(`Erreur lors de l'initialisation de ${fn.name} :`, error);
+    }
+  });
 });
 
 /* ---------- 1. Menu de navigation responsive ---------- */
@@ -385,4 +395,4 @@ function showUserProfile(user) {
       google.accounts.id.disableAutoSelect();
     }
   });
-     }
+       }
