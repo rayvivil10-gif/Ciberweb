@@ -385,4 +385,4 @@ function showUserProfile(user) {
       google.accounts.id.disableAutoSelect();
     }
   });
-}
+                          }
