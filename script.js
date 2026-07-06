@@ -311,7 +311,7 @@ function initGoogleSignIn() {
   if (!window.google || !google.accounts || !google.accounts.id) return;
 
   google.accounts.id.initialize({
-    client_id: '265182935103-8k99458dhdlil5ot39rrlgev7j6mv9ag.apps.googleusercontent.com',
+    client_id: '265182935103-7dlbd2ru2pq0um3rd6302e18s9aul921.apps.googleusercontent.com',
     callback: handleGoogleCredential,
     auto_select: false
   });
@@ -385,4 +385,4 @@ function showUserProfile(user) {
       google.accounts.id.disableAutoSelect();
     }
   });
-}
+     }
